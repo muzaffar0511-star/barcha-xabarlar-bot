@@ -103,6 +103,23 @@ async function handleBusinessMessage(message) {
     });
     return;
   }
+
+  const menuShownKey = `tm:menu:shown:${bcId}:${message.chat.id}`;
+  const menuWasShown = Boolean(await getJson(menuShownKey));
+  const menuRequested = /^\/?menu$/i.test(String(message.text || "").trim());
+
+  if (menuWasShown && !menuRequested) {
+    if (common === "#MENU" || message.sticker) {
+      await telegram("sendMessage", {
+        business_connection_id: bcId,
+        chat_id: message.chat.id,
+        text: "Assalomu alaykum! Sizga qanday yordam berishim mumkin?",
+        reply_parameters: { message_id: message.message_id, allow_sending_without_reply: true }
+      });
+    }
+    return;
+  }
+
   const config = await getMenuConfig();
   const view = menuView(config, "menu_main");
   const greeting = common === "#MENU" || message.sticker
@@ -115,6 +132,7 @@ async function handleBusinessMessage(message) {
     reply_markup: view.reply_markup,
     reply_parameters: { message_id: message.message_id, allow_sending_without_reply: true }
   });
+  await setJson(menuShownKey, true);
 }
 
 async function handleCallback(query) {

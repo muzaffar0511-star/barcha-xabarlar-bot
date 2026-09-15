@@ -1,6 +1,6 @@
 # Barcha Xabarlar Bot — Vercel
 
-Telegram Business akkauntlaridan kelgan xabarlarni bitta admin botga yig‘adi. Qabulxona akkauntida tezkor tugmali menyu ko‘rsatadi; admin Reply orqali mijozga javob beradi va `/panel` orqali menyu ma’lumotlarini yangilaydi.
+Telegram Business akkauntlaridan kelgan xabarlarni bitta admin botga yig‘adi. Qabulxona akkauntida tezkor tugmali menyuni har bir mijozga faqat birinchi murojaatda ko‘rsatadi; mijoz `menu` yoki `/menu` deb uni qayta ochishi mumkin. Admin Reply orqali mijozga javob beradi va `/panel` orqali menyu ma’lumotlarini yangilaydi.
 
 ## Vercel environment variables
 
