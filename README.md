@@ -7,6 +7,7 @@ Telegram Business akkauntlaridan kelgan xabarlarni bitta admin botga yig‘adi. 
 - `TELEGRAM_BOT_TOKEN` — `@barchaxabarlar_bot` tokeni.
 - `TELEGRAM_WEBHOOK_SECRET` — tasodifiy maxfiy satr.
 - `ADMIN_CHAT_ID` — `166592957`.
+- `SETUP_SECRET` — webhook o‘rnatish sahifasini himoyalaydigan tasodifiy maxfiy satr.
 - `UPSTASH_REDIS_REST_URL` — Vercel Marketplace Redis integratsiyasidan.
 - `UPSTASH_REDIS_REST_TOKEN` — Vercel Marketplace Redis integratsiyasidan.
 
@@ -17,7 +18,7 @@ Telegram Business akkauntlaridan kelgan xabarlarni bitta admin botga yig‘adi. 
 1. Loyihani alohida Vercel project sifatida deploy qiling.
 2. Vercel Marketplace orqali Upstash Redis ulang.
 3. Environment Variables qiymatlarini Production uchun kiriting va redeploy qiling.
-4. `PUBLIC_URL`, `TELEGRAM_BOT_TOKEN` va `TELEGRAM_WEBHOOK_SECRET` bilan `node scripts/setup-webhook.mjs`ni bir marta ishga tushiring.
+4. Brauzerda `https://PROJECT-DOMAIN/api/setup?key=SETUP_SECRET` manzilini bir marta oching.
 5. Har bir Telegram Business akkauntiga boshqa profildan bittadan xabar yuboring.
 6. Admin botda `/accounts` orqali akkauntlarni `Qabulxona`, `Dars` yoki `Asosiy` sifatida belgilang.
 7. `/panel` orqali mijoz menyusini boshqaring.
