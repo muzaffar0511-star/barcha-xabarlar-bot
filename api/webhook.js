@@ -4,6 +4,8 @@ import {
   findSection,
   getMenuConfig,
   menuView,
+  moveItem,
+  moveSection,
   newMenuId,
   removeItem,
   removeSection,
@@ -226,6 +228,8 @@ async function sendAdminPanel() {
       [{ text: "✏️ Ma’lumot matnini yangilash", callback_data: "admin_edit_item" }],
       [{ text: "🏷 Bo‘lim nomini o‘zgartirish", callback_data: "admin_rename_section" }],
       [{ text: "🏷 Tugma nomini o‘zgartirish", callback_data: "admin_rename_item" }],
+      [{ text: "↕️ Bo‘limlar tartibini o‘zgartirish", callback_data: "admin_order_sections" }],
+      [{ text: "↕️ Tugmalar tartibini o‘zgartirish", callback_data: "admin_order_items" }],
       [{ text: "🗑 Bo‘limni o‘chirish", callback_data: "admin_delete_section" }],
       [{ text: "🗑 Ma’lumot/tugmani o‘chirish", callback_data: "admin_delete_item" }],
       [{ text: "👁 Mijoz menyusini ko‘rish", callback_data: "admin_preview" }]
@@ -235,6 +239,7 @@ async function sendAdminPanel() {
 
 async function handleAdminCallback(query) {
   const data = query.data;
+  if (data === "admin_noop") return;
   if (data === "admin_panel") return sendAdminPanel();
   if (data === "admin_preview") {
     const view = menuView(await getMenuConfig(), "menu_main");
@@ -249,6 +254,8 @@ async function handleAdminCallback(query) {
   if (data === "admin_edit_item") return sendSectionPicker("Qaysi bo‘limdagi ma’lumot yangilanadi?", "admin_editsec_");
   if (data === "admin_rename_section") return sendSectionPicker("Qaysi bo‘lim nomini o‘zgartirasiz?", "admin_renamesec_");
   if (data === "admin_rename_item") return sendSectionPicker("Qaysi bo‘limdagi tugma nomini o‘zgartirasiz?", "admin_renitemsec_");
+  if (data === "admin_order_sections") return renderSectionOrderPanel(query);
+  if (data === "admin_order_items") return sendSectionPicker("Qaysi bo‘limdagi tugmalar tartibini o‘zgartirasiz?", "admin_orderitems_");
   if (data === "admin_delete_section") return sendSectionPicker("O‘chiriladigan bo‘limni tanlang:", "admin_delsec_");
   if (data === "admin_delete_item") return sendSectionPicker("Qaysi bo‘limdagi ma’lumot o‘chiriladi?", "admin_delitemsec_");
 
@@ -262,6 +269,23 @@ async function handleAdminCallback(query) {
     return promptAdmin("Bo‘limning yangi nomini yuboring.");
   }
   if (data.startsWith("admin_renitemsec_")) return sendItemPicker(data.slice(17), "Nomini o‘zgartiradigan tugmani tanlang:", "admin_renameitem_");
+  if (data.startsWith("admin_orderitems_")) return renderItemOrderPanel(query, data.slice(17));
+  if (data.startsWith("admin_secup_") || data.startsWith("admin_secdown_")) {
+    const isUp = data.startsWith("admin_secup_");
+    const id = data.slice(isUp ? 12 : 14);
+    const config = await getMenuConfig();
+    if (moveSection(config, id, isUp ? -1 : 1)) await saveMenuConfig(config);
+    return renderSectionOrderPanel(query);
+  }
+  if (data.startsWith("admin_itemup_") || data.startsWith("admin_itemdown_")) {
+    const isUp = data.startsWith("admin_itemup_");
+    const id = data.slice(isUp ? 13 : 15);
+    const config = await getMenuConfig();
+    const section = config.sections.find((entry) => entry.items.some((item) => item.id === id));
+    if (!section) return adminError("Ma’lumot topilmadi.");
+    if (moveItem(config, id, isUp ? -1 : 1)) await saveMenuConfig(config);
+    return renderItemOrderPanel(query, section.id);
+  }
   if (data.startsWith("admin_delsec_")) {
     const section = findSection(await getMenuConfig(), data.slice(13));
     if (!section) return adminError("Bo‘lim topilmadi.");
@@ -364,6 +388,44 @@ async function sendItemPicker(sectionId, text, prefix) {
   const rows = section.items.map((item) => [{ text: item.title, callback_data: prefix + item.id }]);
   rows.push([{ text: "⬅️ Boshqaruv paneli", callback_data: "admin_panel" }]);
   return telegram("sendMessage", { chat_id: adminChatId(), text, reply_markup: { inline_keyboard: rows } });
+}
+
+async function renderSectionOrderPanel(query) {
+  const config = await getMenuConfig();
+  const rows = config.sections.map((section, index) => {
+    const row = [{ text: section.title, callback_data: "admin_noop" }];
+    if (index > 0) row.push({ text: "⬆️", callback_data: `admin_secup_${section.id}` });
+    if (index < config.sections.length - 1) row.push({ text: "⬇️", callback_data: `admin_secdown_${section.id}` });
+    return row;
+  });
+  rows.push([{ text: "⬅️ Boshqaruv paneli", callback_data: "admin_panel" }]);
+  return editAdminControls(query, "↕️ Bo‘limlarni kerakli tartibga suring:", rows);
+}
+
+async function renderItemOrderPanel(query, sectionId) {
+  const section = findSection(await getMenuConfig(), sectionId);
+  if (!section) return adminError("Bo‘lim topilmadi.");
+  if (!section.items.length) return adminError("Bu bo‘limda hali ma’lumot yo‘q.");
+  const rows = section.items.map((item, index) => {
+    const row = [{ text: item.title, callback_data: "admin_noop" }];
+    if (index > 0) row.push({ text: "⬆️", callback_data: `admin_itemup_${item.id}` });
+    if (index < section.items.length - 1) row.push({ text: "⬇️", callback_data: `admin_itemdown_${item.id}` });
+    return row;
+  });
+  rows.push([{ text: "⬅️ Boshqaruv paneli", callback_data: "admin_panel" }]);
+  return editAdminControls(query, `↕️ ${section.title} ichidagi tugmalar tartibini o‘zgartiring:`, rows);
+}
+
+async function editAdminControls(query, text, rows) {
+  return telegram("editMessageText", {
+    chat_id: adminChatId(),
+    message_id: query.message.message_id,
+    text,
+    reply_markup: { inline_keyboard: rows }
+  }).catch((error) => {
+    if (!String(error.message).includes("message is not modified")) throw error;
+    return null;
+  });
 }
 
 function sendDeleteConfirmation(text, callbackData) {
