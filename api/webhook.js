@@ -5,6 +5,8 @@ import {
   getMenuConfig,
   menuView,
   newMenuId,
+  removeItem,
+  removeSection,
   saveMenuConfig
 } from "../lib/menu.js";
 import { del, getJson, once, setJson } from "../lib/store.js";
@@ -104,7 +106,7 @@ async function handleBusinessMessage(message) {
     return;
   }
 
-  const menuShownKey = `tm:menu:shown:${bcId}:${message.chat.id}`;
+  const menuShownKey = `tm:menu:shown:v2:${bcId}:${message.chat.id}`;
   const menuWasShown = Boolean(await getJson(menuShownKey));
   const menuRequested = /^\/?menu$/i.test(String(message.text || "").trim());
 
@@ -132,7 +134,7 @@ async function handleBusinessMessage(message) {
     reply_markup: view.reply_markup,
     reply_parameters: { message_id: message.message_id, allow_sending_without_reply: true }
   });
-  await setJson(menuShownKey, true);
+  await setJson(menuShownKey, true, 86400);
 }
 
 async function handleCallback(query) {
@@ -224,6 +226,8 @@ async function sendAdminPanel() {
       [{ text: "✏️ Ma’lumot matnini yangilash", callback_data: "admin_edit_item" }],
       [{ text: "🏷 Bo‘lim nomini o‘zgartirish", callback_data: "admin_rename_section" }],
       [{ text: "🏷 Tugma nomini o‘zgartirish", callback_data: "admin_rename_item" }],
+      [{ text: "🗑 Bo‘limni o‘chirish", callback_data: "admin_delete_section" }],
+      [{ text: "🗑 Ma’lumot/tugmani o‘chirish", callback_data: "admin_delete_item" }],
       [{ text: "👁 Mijoz menyusini ko‘rish", callback_data: "admin_preview" }]
     ] }
   });
@@ -245,6 +249,8 @@ async function handleAdminCallback(query) {
   if (data === "admin_edit_item") return sendSectionPicker("Qaysi bo‘limdagi ma’lumot yangilanadi?", "admin_editsec_");
   if (data === "admin_rename_section") return sendSectionPicker("Qaysi bo‘lim nomini o‘zgartirasiz?", "admin_renamesec_");
   if (data === "admin_rename_item") return sendSectionPicker("Qaysi bo‘limdagi tugma nomini o‘zgartirasiz?", "admin_renitemsec_");
+  if (data === "admin_delete_section") return sendSectionPicker("O‘chiriladigan bo‘limni tanlang:", "admin_delsec_");
+  if (data === "admin_delete_item") return sendSectionPicker("Qaysi bo‘limdagi ma’lumot o‘chiriladi?", "admin_delitemsec_");
 
   if (data.startsWith("admin_addto_")) {
     await setJson("tm:admin:state", { action: "add_item_title", section_id: data.slice(12) }, 3600);
@@ -256,6 +262,35 @@ async function handleAdminCallback(query) {
     return promptAdmin("Bo‘limning yangi nomini yuboring.");
   }
   if (data.startsWith("admin_renitemsec_")) return sendItemPicker(data.slice(17), "Nomini o‘zgartiradigan tugmani tanlang:", "admin_renameitem_");
+  if (data.startsWith("admin_delsec_")) {
+    const section = findSection(await getMenuConfig(), data.slice(13));
+    if (!section) return adminError("Bo‘lim topilmadi.");
+    return sendDeleteConfirmation(
+      `“${section.title}” bo‘limi va uning ichidagi barcha ma’lumotlar o‘chirilsinmi?`,
+      `admin_confirm_delsec_${section.id}`
+    );
+  }
+  if (data.startsWith("admin_delitemsec_")) return sendItemPicker(data.slice(17), "O‘chiriladigan ma’lumot/tugmani tanlang:", "admin_delitem_");
+  if (data.startsWith("admin_delitem_")) {
+    const item = findItem(await getMenuConfig(), data.slice(14));
+    if (!item) return adminError("Ma’lumot topilmadi.");
+    return sendDeleteConfirmation(
+      `“${item.title}” ma’lumoti va tugmasi o‘chirilsinmi?`,
+      `admin_confirm_delitem_${item.id}`
+    );
+  }
+  if (data.startsWith("admin_confirm_delsec_")) {
+    const config = await getMenuConfig();
+    if (!removeSection(config, data.slice(21))) return adminError("Bo‘lim topilmadi.");
+    await saveMenuConfig(config);
+    return telegram("sendMessage", { chat_id: adminChatId(), text: "✅ Bo‘lim va uning ichidagi ma’lumotlar o‘chirildi." });
+  }
+  if (data.startsWith("admin_confirm_delitem_")) {
+    const config = await getMenuConfig();
+    if (!removeItem(config, data.slice(22))) return adminError("Ma’lumot topilmadi.");
+    await saveMenuConfig(config);
+    return telegram("sendMessage", { chat_id: adminChatId(), text: "✅ Ma’lumot va uning tugmasi o‘chirildi." });
+  }
   if (data.startsWith("admin_edit_")) {
     await setJson("tm:admin:state", { action: "edit_item_text", item_id: data.slice(11) }, 3600);
     return promptAdmin("Ushbu tugma uchun yangi to‘liq ma’lumotni yuboring.");
@@ -329,6 +364,17 @@ async function sendItemPicker(sectionId, text, prefix) {
   const rows = section.items.map((item) => [{ text: item.title, callback_data: prefix + item.id }]);
   rows.push([{ text: "⬅️ Boshqaruv paneli", callback_data: "admin_panel" }]);
   return telegram("sendMessage", { chat_id: adminChatId(), text, reply_markup: { inline_keyboard: rows } });
+}
+
+function sendDeleteConfirmation(text, callbackData) {
+  return telegram("sendMessage", {
+    chat_id: adminChatId(),
+    text: `⚠️ ${text}\n\nBu amalni qaytarib bo‘lmaydi.`,
+    reply_markup: { inline_keyboard: [
+      [{ text: "✅ Ha, o‘chirish", callback_data: callbackData }],
+      [{ text: "❌ Bekor qilish", callback_data: "admin_panel" }]
+    ] }
+  });
 }
 
 function promptAdmin(text) {
