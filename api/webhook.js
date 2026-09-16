@@ -317,7 +317,7 @@ async function handleAdminCallback(query) {
   }
   if (data.startsWith("admin_edit_")) {
     await setJson("tm:admin:state", { action: "edit_item_text", item_id: data.slice(11) }, 3600);
-    return promptAdmin("Ushbu tugma uchun yangi to‘liq ma’lumotni yuboring.");
+    return promptAdmin("Ushbu tugma uchun yangi to‘liq ma’lumotni yuboring. Agar tugma havolani bevosita ochishi kerak bo‘lsa, faqat https:// bilan boshlanuvchi linkni yuboring.");
   }
   if (data.startsWith("admin_renameitem_")) {
     await setJson("tm:admin:state", { action: "rename_item", item_id: data.slice(17) }, 3600);
@@ -339,7 +339,7 @@ async function handleAdminInput(value, state) {
   }
   if (state.action === "add_item_title") {
     await setJson("tm:admin:state", { ...state, action: "add_item_text", title: value }, 3600);
-    return promptAdmin(`Endi “${value}” tugmasi bosilganda chiqadigan to‘liq ma’lumotni yuboring.`);
+    return promptAdmin(`Endi “${value}” tugmasi bosilganda chiqadigan to‘liq ma’lumotni yuboring. Agar tugma havolani bevosita ochishi kerak bo‘lsa, faqat https:// bilan boshlanuvchi linkni yuboring.`);
   }
   if (state.action === "add_item_text") {
     const section = findSection(config, state.section_id);
