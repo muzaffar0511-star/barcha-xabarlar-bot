@@ -6,7 +6,9 @@ import {
   menuView,
   moveItem,
   moveSection,
+  moveSectionEntry,
   newMenuId,
+  orderedSectionEntries,
   removeItem,
   removeSection,
   saveMenuConfig
@@ -286,6 +288,15 @@ async function handleAdminCallback(query) {
     if (moveItem(config, id, isUp ? -1 : 1)) await saveMenuConfig(config);
     return renderItemOrderPanel(query, section.id);
   }
+  if (data.startsWith("admin_entryup_") || data.startsWith("admin_entrydown_")) {
+    const isUp = data.startsWith("admin_entryup_");
+    const id = data.slice(isUp ? 14 : 16);
+    const config = await getMenuConfig();
+    const section = config.sections.find((entry) => orderedSectionEntries(entry).some((item) => item.id === id));
+    if (!section) return adminError("Tugma topilmadi.");
+    if (moveSectionEntry(config, id, isUp ? -1 : 1)) await saveMenuConfig(config);
+    return renderItemOrderPanel(query, section.id);
+  }
   if (data.startsWith("admin_delsec_")) {
     const section = findSection(await getMenuConfig(), data.slice(13));
     if (!section) return adminError("Bo‘lim topilmadi.");
@@ -344,7 +355,9 @@ async function handleAdminInput(value, state) {
   if (state.action === "add_item_text") {
     const section = findSection(config, state.section_id);
     if (!section) return adminError("Bo‘lim topilmadi.");
-    section.items.push({ id: newMenuId("i"), title: state.title, text: value });
+    const id = newMenuId("i");
+    section.items.push({ id, title: state.title, text: value });
+    section.order = [...(section.order || []), id];
     await saveMenuConfig(config);
     await del("tm:admin:state");
     return telegram("sendMessage", { chat_id: adminChatId(), text: "✅ Yangi ma’lumot va tugma qo‘shildi." });
@@ -405,11 +418,12 @@ async function renderSectionOrderPanel(query) {
 async function renderItemOrderPanel(query, sectionId) {
   const section = findSection(await getMenuConfig(), sectionId);
   if (!section) return adminError("Bo‘lim topilmadi.");
-  if (!section.items.length) return adminError("Bu bo‘limda hali ma’lumot yo‘q.");
-  const rows = section.items.map((item, index) => {
-    const row = [{ text: item.title, callback_data: "admin_noop" }];
-    if (index > 0) row.push({ text: "⬆️", callback_data: `admin_itemup_${item.id}` });
-    if (index < section.items.length - 1) row.push({ text: "⬇️", callback_data: `admin_itemdown_${item.id}` });
+  const entries = orderedSectionEntries(section);
+  if (!entries.length) return adminError("Bu bo‘limda hali ma’lumot yo‘q.");
+  const rows = entries.map((entry, index) => {
+    const row = [{ text: entry.title, callback_data: "admin_noop" }];
+    if (index > 0) row.push({ text: "⬆️", callback_data: `admin_entryup_${entry.id}` });
+    if (index < entries.length - 1) row.push({ text: "⬇️", callback_data: `admin_entrydown_${entry.id}` });
     return row;
   });
   rows.push([{ text: "⬅️ Boshqaruv paneli", callback_data: "admin_panel" }]);
